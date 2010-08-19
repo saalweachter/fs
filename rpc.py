@@ -2,9 +2,7 @@
 RPC implementation.
 """
 
-from xdr import xdr_enum, xdr_opaque, xdr_struct, xdr_uint, xdr_union
-
-from xdrlib import Packer, Unpacker
+from xdr import xdr_enum, xdr_opaque, xdr_struct, xdr_uint, xdr_union, xdr_string
 
 class auth_flavor(xdr_enum):
     AUTH_NONE = 0
@@ -80,69 +78,26 @@ class rpc_msg(xdr_struct):
 
 
 
-class tcp_server(object):
-    """
-    The TCP server handles only the network portion of an RPC server.
-    """
-    def __init__(self, server_port):
-        self.server_port = server_port
-
-    def pop_message(self):
-        """
-        Pop a message.  Returns a (connection_id, opaque_bytes) pair.
-        Returns None if no messages are waiting.
-        """
-        pass
-
-    def push_message(self, connection_id, opaque_bytes, close=False):
-        """
-        Push a message back to the network.
-        Set close=True if this is the last message being sent to this
-        connection.
-        """
-        pass
-
-    def cycle_network(self, timeout):
-        """
-        Cycle the network connection.
-        """
-        pass
+class authsys_parms(xdr_struct):
+    stamp = xdr_uint
+    machinename = xdr_string(max=255)
+    uid = xdr_uint
+    gid = xdr_uint
+    #gids = xdr_array(element=xdr_uint, max=16)
 
 
-class tcp_client(object):
-    """
-    The TCP Client handles only the network portion of an RPC client.
-    """
-    def __init__(self, server_host, server_port):
-        self.server_host = server_host
-        self.server_port = server_port
-
-    def pop_message(self):
-        """
-        Pop a message.  Returns a opaque_bytes if they exist.
-        Returns None if no messages are waiting.
-        """
-        pass
-
-    def push_message(self, opaque_bytes, close=False):
-        """
-        Push a message back to the network.
-        Set close=True if this is the last message being sent to this
-        connection.
-        """
-        pass
-
-    def cycle_network(self, timeout):
-        """
-        Cycle the network connection.
-        """
-        pass
 
 
 
 
 #opaque_auth(flavor=1, body="apples to apples").pack(3)
 
+
+
+
+
+
+"""
 packer = Packer()
 info = mismatch_info(low=2, high=4)
 info.pack(packer)
@@ -185,3 +140,5 @@ print(msg2.xid.value)
 print(msg2.body.mtype.value)
 print(msg2.body.cbody.rpcvers.value)
 print(msg2.body.rbody.stat)
+"""
+

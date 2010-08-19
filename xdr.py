@@ -215,6 +215,29 @@ def xdr_opaque(max=None, size=None):
         _xdr_opaque.size = size
     return _xdr_opaque
 
+def xdr_string(max=None):
+    if max == None:
+        max = 2**32-1
+    class _xdr_string(xdr_object):
+        def __init__(self, _bytes):
+            if type(_bytes) is not bytes:
+                raise XDRBadValue
+            if self.__class__.max:
+                if len(_bytes) > self.__class__.max:
+                    raise XDRBadValue
+            self.bytes = _bytes
+
+        def pack(self, packer):
+            packer.pack_string(self.bytes)
+
+        @classmethod
+        def unpack(kls, unpacker):
+            bytes = unpacker.unpack_string()
+            return kls(bytes)
+
+    _xdr_string.max = max
+    return _xdr_string
+
 class xdr_struct(xdr_object):
     def __init__(self, **kwds):
         members = self.members()
@@ -329,5 +352,14 @@ def xdr_union(**kwd):
 
     return _xdr_union
 
+
+def xdr_array(element_type, max=None, size=None):
+    if max == None and size == None:
+        max = 2**32-1
+    if size:
+        max = size
+    class _xdr_array(xdr_object):
+        def __init__(self, objs):
+            pass
 
 
