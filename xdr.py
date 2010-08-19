@@ -359,7 +359,43 @@ def xdr_array(element_type, max=None, size=None):
     if size:
         max = size
     class _xdr_array(xdr_object):
-        def __init__(self, objs):
-            pass
+        def __init__(self, *elements):
+            if size is not None:
+                if len(elements) != size:
+                    raise XDRBadValue
+            self.elements = [ e if isinstance(e, element_type)
+                              else element_type(e)
+                              for e in elements ]
+
+        def pack(self, packer):
+            if size is None:
+                packer.pack_uint(len(self.elements))
+            for e in self.elements:
+                e.pack(packer)
+
+        @classmethod
+        def unpack(cls, unpacker):
+            if size is None:
+                sz = unpacker.unpack_uint()
+            else:
+                sz = size
+            elems = [ element_type.unpack(unpacker)
+                      for i in range(sz) ]
+            return cls(elems)
+
+    _xdr_array.element_type = element_type
+    _xdr_array.max = max
+    if size is not None:
+        _xdr_array.size = size
+
+    return _xdr_array
 
 
+
+if __name__ == "__main__":
+
+    bananas = xdr_array(xdr_uint)
+    apples = bananas(1, 2, 3, 4)
+    packer = _xdr.Packer()
+    apples.pack(packer)
+    print(packer.get_buffer())
