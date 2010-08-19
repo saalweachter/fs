@@ -2,7 +2,7 @@
 RPC implementation.
 """
 
-from xdr import xdr_enum, xdr_opaque, xdr_struct, xdr_uint, xdr_union, xdr_string
+from xdr import xdr_enum, xdr_opaque, xdr_struct, xdr_uint, xdr_union, xdr_string, xdr_array
 
 class auth_flavor(xdr_enum):
     AUTH_NONE = 0
@@ -83,11 +83,128 @@ class authsys_parms(xdr_struct):
     machinename = xdr_string(max=255)
     uid = xdr_uint
     gid = xdr_uint
-    #gids = xdr_array(element=xdr_uint, max=16)
+    gids = xdr_array(xdr_uint, max=16)
 
 
 
+class rpc_program(object):
+    """
+    Base class for an RPC program.
+    """
+    def __init__(self, program_id, version_id):
+        self.program_id = program_id
+        self.version_id = version_id
+        self.procedures = {}
 
+    def get_procedure(self, procedure_id):
+        if procedure_id not in self.procedures:
+            return None
+        return self.procedures[procedure_id]
+
+
+
+class rpc_server(object):
+    """
+    Run an RPC server.
+    """
+    def __init__(self, server_port):
+        from tcp import tcp_server
+        #self.tcp_server = tcp_server(server_port)
+        self.programs = {}
+
+    def cycle_network(self, timeout):
+        self.tcp_server.cycle_network(timeout)
+
+    def handle_message(self, opaque_bytes):
+        """
+        Handles a message, start to finish.
+        Takes the opaque bytes representing the XDR encoded RPC message.
+        Produces an RPC reply, also encoded as opaque bytes.
+        """
+        from xdrlib import Unpacker, Packer
+        unpacker = Unpacker(opaque_bytes)
+        msg = rpc_msg.unpack(unpacker)
+        print(msg.body.mtype.value)
+        if msg.body.mtype != msg_type.CALL:
+            print("No reply!")
+            return None # do not reply to such a bad message.
+        if msg.body.cbody.rpcvers != 2:
+            reply = rpc_msg(xid=msg.xid,
+                            body=rpc_msg.body(mtype=msg_type.REPLY,
+                                              rbody=reply_body(stat=reply_stat.MSG_DENIED,
+                                                               rreply=rejected_reply(stat=reject_stat.RPC_MISMATCH,
+                                                                                     mismatch_info=mismatch_info(low=2, high=2)))))
+        elif msg.body.cbody.prog.value not in self.programs:
+            a=accepted_reply.reply_data(stat=accept_stat.PROG_UNAVAIL)
+            b=accepted_reply(verf=opaque_auth(flavor=auth_flavor.AUTH_NONE,
+                                              body=bytes()),
+                             reply_data=a)
+            c=reply_body(stat=reply_stat.MSG_ACCEPTED,
+                             areply=b)
+            reply = rpc_msg(xid=msg.xid,
+                            body=rpc_msg.body(mtype=msg_type.REPLY,
+                                              rbody=c))
+        elif msg.body.cbody.vers.value not in self.programs[msg.body.cbody.prog.value]:
+            min, max = None, None
+            for k in self.programs[msg.body.cbody.prog.value].keys():
+                if min is None: min = k
+                elif k < min: min = k
+                if max is None: max = k
+                elif k > max: max = k
+            a=accepted_reply.reply_data(stat=accept_stat.PROG_MISMATCH,
+                                        mismatch_info=mismatch_info(low=min,
+                                                                    high=max))
+            b=accepted_reply(verf=opaque_auth(flavor=auth_flavor.AUTH_NONE,
+                                              body=bytes()),
+                             reply_data=a)
+            c=reply_body(stat=reply_stat.MSG_ACCEPTED,
+                             areply=b)
+            reply = rpc_msg(xid=msg.xid,
+                            body=rpc_msg.body(mtype=msg_type.REPLY,
+                                              rbody=c))
+        else:
+            program = self.programs[msg.body.cbody.prog.value][msg.body.cbody.vers.value]
+
+        packer = Packer()
+        reply.pack(packer)
+        return packer.get_buffer()
+    
+    def register_program(self, program):
+        """
+        Register a program to respond to messages.
+        """
+        if program.program_id not in self.programs:
+            self.programs[program.program_id] = {}
+        self.programs[program.program_id][program.version_id] = program
+
+
+from xdrlib import Unpacker, Packer
+
+m = rpc_msg(xid=2,
+            body=rpc_msg.body(mtype=msg_type.CALL,
+                              cbody=call_body(rpcvers=2,
+                                              prog=0,
+                                              vers=0,
+                                              proc=0,
+                                              cred=opaque_auth(flavor=auth_flavor.AUTH_NONE,
+                                                               body=bytes()),
+                                              verf=opaque_auth(flavor=auth_flavor.AUTH_NONE,
+                                                               body=bytes()))))
+
+
+packer = Packer()
+m.pack(packer)
+print(packer.get_buffer())
+
+server = rpc_server(10010)
+server.register_program(rpc_program(0, 0))
+server.register_program(rpc_program(0, 1))
+server.register_program(rpc_program(0, 2))
+
+res = server.handle_message(packer.get_buffer())
+
+print(type(res))
+print(res)
 
 
 #opaque_auth(flavor=1, body="apples to apples").pack(3)

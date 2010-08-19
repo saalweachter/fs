@@ -41,6 +41,9 @@ class xdr_int(xdr_object):
             raise XDRBadValue
         self.value = value
 
+    def __eq__(self, value):
+        return value == self.value
+
     def pack(self, packer):
         packer.pack_int(self.value)
 
@@ -59,6 +62,9 @@ class xdr_uint(xdr_object):
             raise XDRBadValue
         self.value = value
 
+    def __eq__(self, value):
+        return value == self.value
+
     def pack(self, packer):
         packer.pack_uint(self.value)
 
@@ -75,6 +81,9 @@ class xdr_enum(xdr_object):
         else:
             raise XDRBadValue
         self.value = value
+
+    def __eq__(self, value):
+        return value == self.value
 
     @classmethod
     def values(cls):
@@ -96,6 +105,9 @@ class xdr_bool(xdr_object):
             raise XDRBadValue
         self.value = value
 
+    def __eq__(self, value):
+        return value == self.value
+
     def pack(self, packer):
         packer.pack_bool(self.value)
 
@@ -113,6 +125,9 @@ class xdr_hyper(xdr_object):
         if value < -2**63:
             raise XDRBadValue
         self.value = value
+
+    def __eq__(self, value):
+        return value == self.value
 
     def pack(self, packer):
         packer.pack_hyper(self.value)
@@ -132,6 +147,9 @@ class xdr_uhyper(xdr_object):
             raise XDRBadValue
         self.value = value
 
+    def __eq__(self, value):
+        return value == self.value
+
     def pack(self, packer):
         packer.pack_uhyper(self.value)
 
@@ -145,6 +163,9 @@ class xdr_float(xdr_object):
         if type(value) is not float:
             raise XDRBadValue
         self.value = value
+
+    def __eq__(self, value):
+        return value == self.value
 
     def pack(self, packer):
         packer.pack_float(self.value)
@@ -160,6 +181,9 @@ class xdr_double(xdr_object):
             raise XDRBadValue
         self.value = value
 
+    def __eq__(self, value):
+        return value == self.value
+
     def pack(self, packer):
         packer.pack_double(self.value)
 
@@ -173,6 +197,9 @@ class xdr_quad(xdr_object):
         if type(value) is not float:
             raise XDRBadValue
         self.value = value
+
+    def __eq__(self, value):
+        return value == self.value
 
     def pack(self, packer):
         packer.pack_quad(self.value)
@@ -189,7 +216,7 @@ def xdr_opaque(max=None, size=None):
         max = size
     class _xdr_opaque(xdr_object):
         def __init__(self, _bytes):
-            if type(_bytes) is not bytes:
+            if not isinstance(_bytes, bytes):
                 raise XDRBadValue
             if self.__class__.max:
                 if len(_bytes) > self.__class__.max:
