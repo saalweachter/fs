@@ -12,6 +12,9 @@ class auth_flavor(xdr_enum):
 class opaque_auth(xdr_struct):
     flavor = auth_flavor
     body = xdr_opaque(max=400)
+    @staticmethod
+    def NONE():
+        return opaque_auth(flavor=auth_flavor.AUTH_NONE, body=bytes())
 
 class msg_type(xdr_enum):
     CALL = 0
@@ -87,6 +90,21 @@ class authsys_parms(xdr_struct):
 
 
 
+class PING_PROG(rpc_program(prog=0)):
+    PING_VERS_PINGBACK = rpc_version(vers=2)
+    PING_VERS_PINGBACK.PINGPROC_NULL = rpc_procedure(proc=0,
+                                                     args=rpc_void,
+                                                     ret=rpc_void)
+    PING_VERS_PINGBACK.PINGPROC_PINGPROC = rpc_procedure(proc=1,
+                                                         args=rpc_void,
+                                                         ret=rpc_int)
+    PING_VERS_ORIG = rpc_version(vers=1)
+    PING_VERS_ORIG.PINGPROC_NULL = rpc_procedure(proc=0,
+                                                 args=rpc_void,
+                                                 ret=rpc_void)
+
+
+
 class rpc_program(object):
     """
     Base class for an RPC program.
@@ -124,51 +142,95 @@ class rpc_server(object):
         from xdrlib import Unpacker, Packer
         unpacker = Unpacker(opaque_bytes)
         msg = rpc_msg.unpack(unpacker)
+        def _pack(reply):
+            packer = Packer()
+            reply.pack(packer)
+            return packer.get_buffer()
         print(msg.body.mtype.value)
         if msg.body.mtype != msg_type.CALL:
             print("No reply!")
             return None # do not reply to such a bad message.
+        _body = rpc_msg.body
+        _rbody = reply_body
+        _rreply = rejected_reply
+        _areply = accepted_reply
+        _rdata = accepted_reply.reply_data
+        
         if msg.body.cbody.rpcvers != 2:
             reply = rpc_msg(xid=msg.xid,
-                            body=rpc_msg.body(mtype=msg_type.REPLY,
-                                              rbody=reply_body(stat=reply_stat.MSG_DENIED,
-                                                               rreply=rejected_reply(stat=reject_stat.RPC_MISMATCH,
-                                                                                     mismatch_info=mismatch_info(low=2, high=2)))))
-        elif msg.body.cbody.prog.value not in self.programs:
-            a=accepted_reply.reply_data(stat=accept_stat.PROG_UNAVAIL)
-            b=accepted_reply(verf=opaque_auth(flavor=auth_flavor.AUTH_NONE,
-                                              body=bytes()),
-                             reply_data=a)
-            c=reply_body(stat=reply_stat.MSG_ACCEPTED,
-                             areply=b)
+                            body=_body(mtype=msg_type.REPLY,
+                                       rbody=_rbody(stat=reply_stat.MSG_DENIED,
+                                                    rreply=_rreply(stat=reject_stat.RPC_MISMATCH,
+                                                                   mismatch_info=mismatch_info(low=2, high=2)))))
+            return _pack(reply)
+        if msg.body.cbody.prog not in self.programs:
             reply = rpc_msg(xid=msg.xid,
-                            body=rpc_msg.body(mtype=msg_type.REPLY,
-                                              rbody=c))
-        elif msg.body.cbody.vers.value not in self.programs[msg.body.cbody.prog.value]:
+                            body=_body(mtype=msg_type.REPLY,
+                                       rbody=_rbody(stat=reply_stat.MSG_ACCEPTED,
+                                                    areply=_areply(verf=_AUTH_NON(),
+                                                                   reply_data=_rdata(stat=accept_stat.PROG_UNAVAIL)))))
+            return _pack(reply)
+
+        program_versions = self.programs[msg.body.cbody.prog]
+        if msg.body.cbody.vers not in program_versions:
             min, max = None, None
-            for k in self.programs[msg.body.cbody.prog.value].keys():
+            for k in self.programs[msg.body.cbody.prog].keys():
                 if min is None: min = k
                 elif k < min: min = k
                 if max is None: max = k
                 elif k > max: max = k
+            m = mismatch_info(low=min, high=max)
             a=accepted_reply.reply_data(stat=accept_stat.PROG_MISMATCH,
-                                        mismatch_info=mismatch_info(low=min,
-                                                                    high=max))
-            b=accepted_reply(verf=opaque_auth(flavor=auth_flavor.AUTH_NONE,
-                                              body=bytes()),
+                                        mismatch_info=m)
+            b=accepted_reply(verf=opaque_auth.NONE(),
                              reply_data=a)
-            c=reply_body(stat=reply_stat.MSG_ACCEPTED,
-                             areply=b)
+            c=reply_body(stat=reply_stat.MSG_ACCEPTED, areply=b)
             reply = rpc_msg(xid=msg.xid,
                             body=rpc_msg.body(mtype=msg_type.REPLY,
                                               rbody=c))
-        else:
-            program = self.programs[msg.body.cbody.prog.value][msg.body.cbody.vers.value]
+            return _pack(reply)
 
-        packer = Packer()
-        reply.pack(packer)
-        return packer.get_buffer()
-    
+        program = program_versions[msg.body.cbody.vers]
+        procedure = program.get_procedure(msg.body.cbody.proc)
+        if procedure is None:
+            a=accepted_reply.reply_data(stat=accept_stat.PROC_UNAVAIL)
+            b=accepted_reply(verf=opaque_auth.NONE(),
+                             reply_data=a)
+            c=reply_body(stat=reply_stat.MSG_ACCEPTED,
+                         areply=b)
+            reply = rpc_msg(xid=msg.xid,
+                            body=rpc_msg.body(mtype=msg_type.REPLY,
+                                              rbody=c))
+            return _pack(reply)
+
+        arg_bytes = unpacker.get_buffer()[unpacker.get_position():]
+        try:
+            args = procedure.parse_args(arg_bytes)
+        except:
+            a=accepted_reply.reply_data(stat=accept_stat.GARBAGE_ARGS)
+            b=accepted_reply(verf=opaque_auth.NONE(),
+                             reply_data=a)
+            c=reply_body(stat=reply_stat.MSG_ACCEPTED,
+                         areply=b)
+            reply = rpc_msg(xid=msg.xid,
+                            body=rpc_msg.body(mtype=msg_type.REPLY,
+                                              rbody=c))
+            return _pack(reply)
+
+        try:
+            res = procedure.handle(args)
+        except:
+            a=accepted_reply.reply_data(stat=accept_stat.SYSTEM_ERR)
+            b=accepted_reply(verf=opaque_auth.NONE(),
+                             reply_data=a)
+            c=reply_body(stat=reply_stat.MSG_ACCEPTED,
+                         areply=b)
+            reply = rpc_msg(xid=msg.xid,
+                            body=rpc_msg.body(mtype=msg_type.REPLY,
+                                              rbody=c))
+            return _pack(reply)
+        print(type(res))
+ 
     def register_program(self, program):
         """
         Register a program to respond to messages.
@@ -184,22 +246,33 @@ m = rpc_msg(xid=2,
             body=rpc_msg.body(mtype=msg_type.CALL,
                               cbody=call_body(rpcvers=2,
                                               prog=0,
-                                              vers=0,
+                                              vers=1,
                                               proc=0,
-                                              cred=opaque_auth(flavor=auth_flavor.AUTH_NONE,
-                                                               body=bytes()),
-                                              verf=opaque_auth(flavor=auth_flavor.AUTH_NONE,
-                                                               body=bytes()))))
+                                              cred=opaque_auth.NONE(),
+                                              verf=opaque_auth.NONE())))
 
 
 packer = Packer()
 m.pack(packer)
 print(packer.get_buffer())
 
+
+class ping_vers_orig(rpc_program):
+    class pingproc_null(object):
+        def __init__(self):
+            pass
+        def parse_args(self, bytes):
+            # no args
+            return None
+        def handle(self, args):
+            return None
+    def __init__(self):
+        rpc_program.__init__(self, 0, 1)
+        self.procedures[0] = ping_vers_orig.pingproc_null()
+
+
 server = rpc_server(10010)
-server.register_program(rpc_program(0, 0))
-server.register_program(rpc_program(0, 1))
-server.register_program(rpc_program(0, 2))
+server.register_program(ping_vers_orig())
 
 res = server.handle_message(packer.get_buffer())
 

@@ -44,6 +44,12 @@ class xdr_int(xdr_object):
     def __eq__(self, value):
         return value == self.value
 
+    def __int__(self):
+        return self.value
+
+    def __hash__(self):
+        return self.value.__hash__()
+
     def pack(self, packer):
         packer.pack_int(self.value)
 
@@ -64,6 +70,12 @@ class xdr_uint(xdr_object):
 
     def __eq__(self, value):
         return value == self.value
+
+    def __int__(self):
+        return self.value
+
+    def __hash__(self):
+        return self.value.__hash__()
 
     def pack(self, packer):
         packer.pack_uint(self.value)
@@ -108,6 +120,9 @@ class xdr_bool(xdr_object):
     def __eq__(self, value):
         return value == self.value
 
+    def __bool__(self):
+        return self.value
+
     def pack(self, packer):
         packer.pack_bool(self.value)
 
@@ -128,6 +143,12 @@ class xdr_hyper(xdr_object):
 
     def __eq__(self, value):
         return value == self.value
+
+    def __int__(self):
+        return self.value
+
+    def __hash__(self):
+        return self.value.__hash__()
 
     def pack(self, packer):
         packer.pack_hyper(self.value)
@@ -150,6 +171,12 @@ class xdr_uhyper(xdr_object):
     def __eq__(self, value):
         return value == self.value
 
+    def __int__(self):
+        return self.value
+
+    def __hash__(self):
+        return self.value.__hash__()
+
     def pack(self, packer):
         packer.pack_uhyper(self.value)
 
@@ -166,6 +193,9 @@ class xdr_float(xdr_object):
 
     def __eq__(self, value):
         return value == self.value
+
+    def __float__(self):
+        return self.value
 
     def pack(self, packer):
         packer.pack_float(self.value)
@@ -184,6 +214,9 @@ class xdr_double(xdr_object):
     def __eq__(self, value):
         return value == self.value
 
+    def __float__(self):
+        return self.value
+
     def pack(self, packer):
         packer.pack_double(self.value)
 
@@ -200,6 +233,9 @@ class xdr_quad(xdr_object):
 
     def __eq__(self, value):
         return value == self.value
+
+    def __float__(self):
+        return self.value
 
     def pack(self, packer):
         packer.pack_quad(self.value)
@@ -247,12 +283,20 @@ def xdr_string(max=None):
         max = 2**32-1
     class _xdr_string(xdr_object):
         def __init__(self, _bytes):
+            if type(_bytes) is str:
+                _bytes = _bytes.encode("utf8")
             if type(_bytes) is not bytes:
                 raise XDRBadValue
             if self.__class__.max:
                 if len(_bytes) > self.__class__.max:
                     raise XDRBadValue
             self.bytes = _bytes
+
+        def __str__(self):
+            return self.bytes.decode("utf8")
+
+        def __hash__(self):
+            return self.bytes.__hash__()
 
         def pack(self, packer):
             packer.pack_string(self.bytes)
@@ -393,6 +437,9 @@ def xdr_array(element_type, max=None, size=None):
             self.elements = [ e if isinstance(e, element_type)
                               else element_type(e)
                               for e in elements ]
+
+        def __index__(self, n):
+            return self.elements[n]
 
         def pack(self, packer):
             if size is None:
