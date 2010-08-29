@@ -6,6 +6,11 @@ int32_t = xdr_int
 uint32_t = xdr_uint
 int64_t = xdr_hyper
 uint64_t = xdr_uhyper
+
+NFS4_FHSIZE = 128
+NFS4_VERIFIER_SIZE = 8
+NFS4_OPAQUE_LIMIT = 1024
+
 attrlist4 = xdr_opaque()
 bitmap4 = xdr_array(uint32_t)
 changeid4 = uint64_t
@@ -17,7 +22,6 @@ length4 = uint64_t
 linktext4 = utf8str_cs
 mode4 = uint32_t
 nfs_cookie4 = uint64_t
-NFS4_FHSIZE = 42
 nfs_fh4 = xdr_opaque(max=NFS4_FHSIZE)
 class nfs_ftype4(xdr_enum):
     pass
@@ -98,7 +102,6 @@ seqid4 = uint32_t
 utf8string = xdr_opaque()
 utf8str_cis = xdr_opaque()
 utf8str_mixed = xdr_opaque()
-NFS4_VERIFIER_SIZE=42
 verifier4 = xdr_opaque(size=NFS4_VERIFIER_SIZE)
 class nfstime(xdr_struct):
     seconds = int64_t
@@ -108,18 +111,254 @@ class time_how4(xdr_enum):
     SET_TO_CLIENT_TIME4 = 1
 class settime4(xdr_union(set_it=time_how4)):
     SET_TO_CLIENT_TIME4.time = nfstime4
-class specdata4(xdr_struct):
-    specdata1 = uint32_t
-    specdata2 = uint32_t
+
+
+# File access handle
+nfs_fh4 = rpc_opaque(max=NFS4_FHSIZE)
+
+
+# File attribute definitions
+
+# FSID structure for major/minor
 class fsid4(xdr_struct):
     major = uint64_t
     minor = uint64_t
+
+# Filesystem locations attribute for relocation/migration
+
 class fs_location4(xdr_struct):
     server = xdr_array(utf8str_cis)
     rootpath = pathname4
+
 class fs_locations4(xdr_struct):
     fs_root = pathname4
     locations = xdr_array(fs_location4)
+
+# Various Access Control Entry definitions
+
+# Mask that indicates which Access Control Entries are supported.
+# Values for the fattr4_aclsupport attribute.
+ACL4_SUPPORT_ALLOW_ACL = 1
+ACL4_SUPPORT_DENY_ACL = 2
+ACL4_SUPPORT_AUDIT_ACL = 4
+ACL4_SUPPORT_ALARM_ACL = 8
+
+acetype4 = uint32_t
+# acetype4 values, others can be added as needed.
+ACE4_ACCESS_ALLOWED_ACE_TYPE = 0
+ACE4_ACCESS_DENIED_ACE_TYPE = 1
+ACE4_SYSTEM_AUDIT_ACE_TYPE = 2
+ACE4_SYSTEM_ALARM_ACE_TYPE = 3
+
+# ACE flag
+aceflag4 = uint32_t
+
+# ACE flag values
+ACE4_FILE_INHERIT_ACE = 0x00000001
+ACE4_DIRECTORY_INHERIT_ACE = 0x00000002
+ACE4_NO_PROPAGATE_INHERIT_ACE = 0x00000004
+ACE4_INHERIT_ONLY_ACE = 0x00000008
+ACE4_SUCCESSFUL_ACCESS_ACE_FLAG = 0x00000010
+ACE4_FAILED_ACCESS_ACE_FLAG = 0x00000020
+ACE4_IDENTIFIER_GROUP = 0x00000040
+
+# ACE mask
+acemask4 = uint32_t
+
+# ACE mask values
+ACE4_READ_DATA = 0x00000001
+ACE4_LIST_DIRECTORY = 0x00000001
+ACE4_WRITE_DATA = 0x00000002
+ACE4_ADD_FILE = 0x00000002
+ACE4_APPEND_DATA = 0x00000004
+ACE4_ADD_SUBDIRECTORY = 0x00000004
+ACE4_READ_NAMED_ATTRS = 0x00000008
+ACE4_WRITE_NAMED_ATTRS = 0x00000010
+ACE4_EXECUTE = 0x00000020
+ACE4_DELETE_CHILD = 0x00000040
+ACE4_READ_ATTRIBUTES = 0x00000080
+ACE4_WRITE_ATTRIBUTES = 0x00000100
+ACE4_DELETE = 0x00010000
+ACE4_READ_ACL = 0x00020000
+ACE4_WRITE_ACL = 0x00040000
+ACE4_WRITE_OWNER = 0x00080000
+ACE4_SYNCHRONIZE = 0x00100000
+
+# ACE4_GENERIC_READ -- defined as combination of
+#      ACE4_READ_ACL |
+#      ACE4_READ_DATA |
+#      ACE4_READ_ATTRIBUTES |
+#      ACE4_SYNCHRONIZE
+
+ACE4_GENERIC_READ = 0x00120081
+
+# ACE4_GENERIC_WRITE -- defined as combination of
+#      ACE4_READ_ACL |
+#      ACE4_WRITE_DATA |
+#      ACE4_WRITE_ATTRIBUTES |
+#      ACE4_WRITE_ACL |
+#      ACE4_APPEND_DATA |
+#      ACE4_SYNCHRONIZE
+
+ACE4_GENERIC_WRITE = 0x00160106
+
+# ACE4_GENERIC_EXECUTE -- defined as combination of
+#      ACE4_READ_ACL
+#      ACE4_READ_ATTRIBUTES
+#      ACE4_EXECUTE
+#      ACE4_SYNCHRONIZE
+
+ACE4_GENERIC_EXECUTE = 0x001200A0
+
+# Access Control Entry definition
+
+class nfsace4(xdr_struct):
+    type = acetype4
+    flag = aceflag4
+    access_mask = acemask4
+    who = utf8str_mixed
+
+# Field definitions for the fattr4_mode attribute
+MODE4_SUID = 0x800 # set user id on execution
+MODE4_SGID = 0x400 # set group id on execution
+MODE4_SVTX = 0x200 # save text even after use
+MODE4_RUSR = 0x100 # read permission: owner
+MODE4_WUSR = 0x080 # write permission: owner
+MODE4_XUSR = 0x040 # execute permission: owner
+MODE4_RGRP = 0x020 # read permission: group
+MODE4_WGRP = 0x010 # write permission: group
+MODE4_XGRP = 0x008 # execute permission: group
+MODE4_ROTH = 0x004 # read permission: other
+MODE4_WOTH = 0x002 # write permission: other
+MODE4_XOTH = 0x001 # execute permission: other
+
+class specdata4(xdr_struct):
+    specdata1 = uint32_t
+    specdata2 = uint32_t
+
+FH4_PERSISTENT = 0
+FH4_NOEXPIRE_WITH_OPEN = 1
+FH4_VOLATILE_ANY = 2
+FH4_VOL_MIGRATION = 4
+FH4_VOL_RENAME = 8
+
+fattr4_supported_attrs = bitmap4
+fattr4_type = nfs_ftype4
+fattr4_fh_expire_type = uint32_t
+fattr4_change = changeid4
+fattr4_size = uint64_t
+fattr4_link_support = xdr_bool
+fattr4_symlink_support = xdr_bool
+fattr4_named_attr = xdr_bool
+fattr4_fsid = fsid4
+fattr4_unique_handles = xdr_bool
+fattr4_lease_time = uint32_t
+fattr4_rdattr_error = nfsstat4
+fattr4_acl = xdr_array(nfsace4)
+fattr4_aclsupport = uint32_t
+fattr4_archive = xdr_bool
+fattr4_cansettime = xdr_bool
+fattr4_case_insensitive = xdr_bool
+fattr4_case_preserving = xdr_bool
+fattr4_chown_restricted = xdr_bool
+fattr4_fileid = uint64_t
+fattr4_files_avail = uint64_t
+fattr4_filehandle = nfs_fh4
+fattr4_files_free = uint64_t
+fattr4_files_total = uint64_t
+fattr4_fs_locations = fs_locations4
+fattr4_hidden = xdr_bool
+fattr4_homogeneous = xdr_bool
+fattr4_maxfilesize = uint64_t
+fattr4_maxlink = uint32_t
+fattr4_maxname = uint32_t
+fattr4_maxread = uint64_t
+fattr4_maxwrite = uint64_t
+fattr4_mimetype = utf8str_cs
+fattr4_mode = mode4
+fattr4_mounted_on_fileid = uint64_t
+fattr4_no_trunc = xdr_bool
+fattr4_numlinks = uint32_t
+fattr4_owner = utf8str_mixed
+fattr4_owner_group = utf8str_mixed
+fattr4_quota_avail_hard = uint64_t
+fattr4_quota_avail_soft = uint64_t
+fattr4_quota_used = uint64_t
+fattr4_rawdev = specdata4
+fattr4_space_avail = uint64_t
+fattr4_space_free = uint64_t
+fattr4_space_total = uint64_t
+fattr4_space_used = uint64_t
+fattr4_system = xdr_bool
+fattr4_time_access = nfstime4
+fattr4_time_access_set = settime4
+fattr4_time_backup = nfstime4
+fattr4_time_create = nfstime4
+fattr4_time_delta = nfstime4
+fattr4_time_metadata = nfstime4
+fattr4_time_modify = nfstime4
+fattr4_time_modify_set = settime4
+
+# Mandatory Attributes
+FATTR4_SUPPORTED_ATTRS = 0
+FATTR4_TYPE = 1
+FATTR4_FH_EXPIRE_TYPE = 2
+FATTR4_CHANGE = 3
+FATTR4_SIZE = 4
+FATTR4_LINK_SUPPORT = 5
+FATTR4_SYMLINK_SUPPORT = 6
+FATTR4_NAMED_ATTR = 7
+FATTR4_FSID = 8
+FATTR4_UNIQUE_HANDLES = 9
+FATTR4_LEASE_TIME = 10
+FATTR4_RDATTR_ERROR = 11
+FATTR4_FILEHANDLE = 19
+
+# Recommended Attributes
+FATTR4_ACL = 12
+FATTR4_ACLSUPPORT = 13
+FATTR4_ARCHIVE = 14
+FATTR4_CANSETTIME = 15
+FATTR4_CASE_INSENSITIVE = 16
+FATTR4_CASE_PRESERVING = 17
+FATTR4_CHOWN_RESTRICTED = 18
+FATTR4_FILEID = 20
+FATTR4_FILES_AVAIL = 21
+FATTR4_FILES_FREE = 22
+FATTR4_FILES_TOTAL = 23
+FATTR4_FS_LOCATIONS = 24
+FATTR4_HIDDEN = 25
+FATTR4_HOMOGENEOUS = 26
+FATTR4_MAXFILESIZE = 27
+FATTR4_MAXLINK = 28
+FATTR4_MAXNAME = 29
+FATTR4_MAXREAD = 30
+FATTR4_MAXWRITE = 31
+FATTR4_MIMETYPE = 32
+FATTR4_MODE = 33
+FATTR4_NO_TRUNC = 34
+FATTR4_NUMLINKS = 35
+FATTR4_OWNER = 36
+FATTR4_OWNER_GROUP = 37
+FATTR4_QUOTA_AVAIL_HARD = 38
+FATTR4_QUOTA_AVAIL_SOFT = 39
+FATTR4_QUOTA_USED = 40
+FATTR4_RAWDEV = 41
+FATTR4_SPACE_AVAIL = 42
+FATTR4_SPACE_FREE = 43
+FATTR4_SPACE_TOTAL = 44
+FATTR4_SPACE_USED = 45
+FATTR4_SYSTEM = 46
+FATTR4_TIME_ACCESS = 47
+FATTR4_TIME_ACCESS_SET = 48
+FATTR4_TIME_BACKUP = 49
+FATTR4_TIME_CREATE = 50
+FATTR4_TIME_DELTA = 51
+FATTR4_TIME_METADATA = 52
+FATTR4_TIME_MODIFY = 53
+FATTR4_TIME_MODIFY_SET = 54
+FATTR4_MOUNTED_ON_FILEID = 55
+
 class fattr4(xdr_struct):
     attrmask = bitmap4
     attr_vals = attrlist4
@@ -133,7 +372,6 @@ class clientaddr4(xdr_struct):
 class cb_client4(xdr_struct):
     cb_program = xdr_uint
     cb_location = clientaddr4
-NFS4_OPAQUE_LIMIT = 42
 class nfs_client_id4(xdr_struct):
     verifier = verifier4
     id = xdr_opaque(max=NFS4_OPAQUE_LIMIT)
@@ -168,6 +406,154 @@ class rpcsec_gss_info(xdr_struct):
     qop = qop4
     service = rpc_gss_svc_t
 
+
+class nfs_lock_type4(xdr_enum):
+    READ_LT = 1
+    WRITE_LT = 2
+    READW_LT = 3 # blocking read
+    WRITEW_LT = 4 # blocking write
+
+# ACCESS: Check access permission
+ACCESS4_READ = 1
+ACCESS4_LOOKUP = 2
+ACCESS4_MODIFY = 4
+ACCESS4_EXTEND = 8
+ACCESS4_DELETE = 16
+ACCESS4_EXECUTE = 32
+
+class ACCESS4args(xdr_struct):
+    # CURRENT_FH: object
+    access = uint32_t
+
+class ACCESS4resok(xdr_struct):
+    supported = uint32_t
+    access = uint32_t
+
+class ACCESS4res(xdr_union(status=nfsstat4)):
+    NFS4_OK.resok4 = ACCESS4resok
+
+# CLOSE: Close a file and release share reservations
+class CLOSE4args(xdr_struct):
+    # CURRENT_FH: object
+    seqid = seqid4
+    open_stateid = stateid4
+
+class CLOSE4res(xdr_union(status=nfsstat4)):
+    NFS4_OK.open_stateid = stateid4
+
+# COMMIT: Commit cached data on server to stable storage
+class COMMIT4args(xdr_struct):
+    # CURRENT_FH: file
+    offset = offset4
+    count = count4
+
+class COMMIT4resok(xdr_struct):
+    writeverf = verifier4
+
+class COMMIT4res(xdr_union(status=nfsstat4)):
+    NFS4_OK.resok4 = COMMIT4resok
+
+# CREATE: Create a non-regular file
+class createtype4(xdr_union(type=nfs_ftype4)):
+    NF4LNK.linkdata = linktext4
+    NF4BLK.devdata = specdata4
+    NF4CHR.devdata = specdata4
+
+class CREATE4args(xdr_struct):
+    # CURRENT_FH: directory for creation
+    objtype = createtype4
+    objname = component4
+    createattrs = fattr4
+
+class CREATE4resok(xdr_struct):
+    cinfo = change_info4
+    attrset = bitmap4 # attributes set
+
+class CREATE4res(xdr_union(status=nfsstat4)):
+    NFS4_OK.resok4 = CREATE4resok
+
+# DELEGPURGE: Purge Delegations Awaiting Recovery
+class DELEGPURGE4args(xdr_struct):
+    clientid = clientid4
+
+class DELEGPURGE4res(xdr_struct):
+    status = nfsstat4
+
+# DELEGRETURN: Return a delegation
+class DELEGRETURN4args(xdr_struct):
+    # CURRENT_FH: delegated file
+    deleg_stateid = stateid4
+
+class DELEGRETURN4res(xdr_struct):
+    status = nfsstat4
+
+# GETATTR: Get file attributes
+class GETATTR4args(xdr_struct):
+    # CURRENT_FH: directory or file
+    attr_request = bitmap4
+
+class GETATTR4resok(xdr_struct):
+    obj_attributes = fattr4
+
+class GETATTR4res(xdr_union(status=nfsstat4)):
+    NFS4_OK.resok4 = GETATTR4resok
+
+# GETFH: Get current filehandle
+class GETFH4resok(xdr_struct):
+    object = nfs_fh4
+
+class GETFH4res(xdr_union(status=nfsstat4)):
+    NFS4_OK.resok4 = GETFH4resok
+
+# LINK: Create link to an object
+class LINK4args(xdr_struct):
+    # SAVED_FH: source object
+    # CURRENT_FH: target directory
+    newname = component4
+
+class LINK4resok(xdr_struct):
+    cinfo = change_info4
+
+class LINK4res(xdr_union(status=nfsstat4)):
+    NFS4_OK.resok4 = LINK4resok
+
+# For LOCK, transition from open_owner to new lock_owner
+class open_to_lock_owner4(xdr_struct):
+    open_seqid = seqid4
+    open_stateid = stateid4
+    lock_seqid = seqid4
+    lock_owner = lock_owner4
+
+# For LOCK, existing lock_owner continues to request file locks
+class exist_lock_owner4(xdr_struct):
+    lock_stateid = stateid4
+    lock_seqid = seqid4
+
+class locker4(xdr_union(new_lock_owner=xdr_bool)):
+    TRUE.open_owner = open_to_lock_owner4
+    FALSE.lock_owner = exist_lock_owner4
+
+# LOCK/LOCKT/LOCKU: Record lock management
+class LOCK4args(xdr_struct):
+    # CURRENT_FH: file
+    locktype = nfs_lock_type4
+    reclaim = xdr_bool
+    offset = offset4
+    length = length4
+    locker = locker4
+
+class LOCK4denied(xdr_struct):
+    offset = offset4
+    length = length4
+    locktype = nfs_lock_type4
+    owner = lock_owner4
+
+class LOCK4resok(xdr_struct):
+    lock_stateid = stateid4
+
+class LOCK4res(xdr_union(status=nfsstat4)):
+    NFS4_OK.resok4 = LOCK4resok
+    NFS4ERR_DENIED.denied = LOCK4denied
 
 class LOCKT4args(xdr_struct):
     # CURRENT_FH: file
