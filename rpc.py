@@ -2,7 +2,7 @@
 RPC implementation.
 """
 
-from xdr import xdr_enum, xdr_opaque, xdr_struct, xdr_uint, xdr_union, xdr_string, xdr_array
+from xdr import xdr_enum, xdr_opaque, xdr_struct, xdr_uint, xdr_union, xdr_string, xdr_array, xdr_void, xdr_int
 
 class auth_flavor(xdr_enum):
     AUTH_NONE = 0
@@ -90,34 +90,160 @@ class authsys_parms(xdr_struct):
 
 
 
+
+def rpc_program(prog):
+    class _rpc_program(object):
+        @classmethod
+        def versions(cls):
+            return [ v
+                     for v in cls.__dict__.values()
+                     if isinstance(v, rpc_version) ]
+
+    _rpc_program.program_id = prog
+    return _rpc_program
+
+class rpc_version(object):
+    def __init__(self, vers):
+        self.version_id = vers
+
+    def get_procedure(self, proc):
+        for k, v in self.__dict__.items():
+            if k == proc:
+                return v
+
+class rpc_procedure(object):
+    def __init__(self, proc, args, ret):
+        self.procedure_id = proc
+        self.argument_type = args
+        self.return_type = ret
+
+
 class PING_PROG(rpc_program(prog=0)):
     PING_VERS_PINGBACK = rpc_version(vers=2)
     PING_VERS_PINGBACK.PINGPROC_NULL = rpc_procedure(proc=0,
-                                                     args=rpc_void,
-                                                     ret=rpc_void)
+                                                     args=xdr_void,
+                                                     ret=xdr_void)
     PING_VERS_PINGBACK.PINGPROC_PINGPROC = rpc_procedure(proc=1,
-                                                         args=rpc_void,
-                                                         ret=rpc_int)
+                                                         args=xdr_void,
+                                                         ret=xdr_int)
     PING_VERS_ORIG = rpc_version(vers=1)
     PING_VERS_ORIG.PINGPROC_NULL = rpc_procedure(proc=0,
-                                                 args=rpc_void,
-                                                 ret=rpc_void)
+                                                 args=xdr_void,
+                                                 ret=xdr_void)
+    PING_VERS = 2
 
 
 
-class rpc_program(object):
+class rpc_client(object):
+    def __init__(self, prog, vers):
+        self.program = prog
+        for v in prog.versions():
+            if vers == v.version_id:
+                self.version = v
+                break
+        else:
+            self.version = None
+
+    def __getattr__(self, proc):
+        procedure = self.version.get_procedure(proc)
+        if not procedure:
+            raise AttributeError
+        print("procedure: %s" % str(procedure))
+        class _procedure(object):
+            def __init__(self, procedure, tcp_client, prog, vers):
+                self.procedure = procedure
+                self.tcp_client = tcp_client
+                self.prog = prog
+                self.vers = vers
+            def __call__(self, arg):
+                msg = rpc_msg(xid=1234,
+                              body=rpc_msg.body(mtype=msg_type.CALL,
+                                                cbody=call_body(rpcvers=2,
+                                                                prog=self.prog,
+                                                                vers=self.vers,
+                                                                proc=self.procedure.procedure_id,
+                                                                cred=opaque_auth.NONE(),
+                                                                verf=opaque_auth.NONE())))
+                from xdrlib import Packer
+                packer = Packer()
+                msg.pack(packer)
+                print("msg: %s" % packer.get_buffer())
+
+        return _procedure(procedure, None,
+                          self.program.program_id, self.version.version_id)
+
+
+
+class rpc_server(object):
     """
-    Base class for an RPC program.
+    Run an RPC server.
     """
-    def __init__(self, program_id, version_id):
-        self.program_id = program_id
-        self.version_id = version_id
-        self.procedures = {}
+    def __init__(self, server_port):
+        from tcp import tcp_server
+        self.tcp_server = tcp_server(server_port)
+        self.programs = {}
 
-    def get_procedure(self, procedure_id):
-        if procedure_id not in self.procedures:
-            return None
-        return self.procedures[procedure_id]
+    def cycle_network(self, timeout):
+        self.tcp_server.cycle_network(timeout)
+
+    def cycle(self, timeout):
+        self.tcp_server.cycle_network(timeout)
+        while True:
+            m = self.tcp_server.pop_message()
+            if not m: break
+            client_id, message = m
+            print("Got message!")
+            print("Client id: %d" % client_id)
+            print("Message: %s" % message)
+            response = self.handle_message(message)
+            print("Response: %s" % response)
+
+    def handle_message(self, opaque_bytes):
+        """
+        Handles a message, start to finish.
+        Takes the opaque bytes representing the XDR encoded RPC message.
+        Produces an RPC reply, also encoded as opaque bytes.
+        """
+        from xdrlib import Unpacker, Packer
+        unpacker = Unpacker(opaque_bytes)
+        msg = rpc_msg.unpack(unpacker)
+        print(msg.body.mtype.value)
+        if msg.body.mtype != msg_type.CALL:
+            print("No reply!")
+            return None # do not reply to such a bad message.
+        print("Well-formed message!")
+        print("rpc version: %d" % msg.body.cbody.rpcvers)
+        print("program id: %d" % msg.body.cbody.prog)
+        print("version id: %d" % msg.body.cbody.vers)
+        print("procedure id: %d" % msg.body.cbody.proc)
+        print("cred flavor: %d" % msg.body.cbody.cred.flavor)
+        print("verf flavor: %d" % msg.body.cbody.verf.flavor)
+        print("remaining bytes: %s" % opaque_bytes[unpacker.get_position():])
+
+
+if __name__ == "__main__":
+    server = rpc_server(2049)
+    for i in range(60):
+        server.cycle(1000.0)
+    import sys
+    sys.exit(0)
+
+if __name__ == "__main__":
+    print("Ping prog: %s" % dir(PING_PROG))
+    print("versions: %s" % PING_PROG.versions())
+    for v in PING_PROG.versions():
+        print("version: %d" % v.version_id)
+    print("dict: %s" % str(PING_PROG.__dict__))
+    client = rpc_client(prog=PING_PROG, vers=PING_PROG.PING_VERS)
+    print("client: %s" % str(client))
+    print("client program: %s" % str(client.program))
+    print("client version: %s" % str(client.version))
+    p = client.PINGPROC_NULL
+    print("client procedure: %s" % str(p))
+    p(1)
+    sys.exit(0)
+
+
 
 
 

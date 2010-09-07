@@ -31,6 +31,16 @@ class _xdr_type(type):
 class xdr_object(object, metaclass=_xdr_type):
     pass
 
+
+class xdr_void(xdr_object):
+    def pack(self, packer):
+        pass
+
+    @staticmethod
+    def unpack(unpacker):
+        return xdr_void()
+
+
 class xdr_int(xdr_object):
     def __init__(self, value):
         if type(value) is not int:
@@ -97,6 +107,12 @@ class xdr_enum(xdr_object):
     def __eq__(self, value):
         return value == self.value
 
+    def __int__(self):
+        return self.value
+
+    def __hash__(self):
+        return self.value.__hash__()
+
     @classmethod
     def values(cls):
         return [ (k, v)
@@ -122,6 +138,10 @@ class xdr_bool(xdr_object):
 
     def __bool__(self):
         return self.value
+
+    @classmethod
+    def values(cls):
+        return [ ("FALSE", 0), ("TRUE", 1) ]
 
     def pack(self, packer):
         packer.pack_bool(self.value)
@@ -464,6 +484,9 @@ def xdr_array(element_type, max=None, size=None):
 
     return _xdr_array
 
+
+def xdr_optional(element_type):
+    return xdr_array(element_type, max=1)
 
 
 if __name__ == "__main__":

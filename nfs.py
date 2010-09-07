@@ -2,6 +2,11 @@
 Basic NFS implementation.
 """
 
+from xdr import xdr_int, xdr_uint, xdr_hyper, xdr_uhyper, xdr_opaque, xdr_array
+from xdr import xdr_enum, xdr_struct, xdr_union, xdr_bool, xdr_string
+from xdr import xdr_optional
+
+
 int32_t = xdr_int
 uint32_t = xdr_uint
 int64_t = xdr_hyper
@@ -23,8 +28,18 @@ linktext4 = utf8str_cs
 mode4 = uint32_t
 nfs_cookie4 = uint64_t
 nfs_fh4 = xdr_opaque(max=NFS4_FHSIZE)
+
 class nfs_ftype4(xdr_enum):
-    pass
+    NF4REG = 1 # Regular File
+    NF4DIR = 2 # Directory
+    NF4BLK = 3 # Special File - block device
+    NF4CHR = 4 # Special File - character device
+    NF4LNK = 5 # Symbolic Link
+    NF4SOCK = 6 # Special File - socket
+    NF4FIFO = 7 # Special File - fifo
+    NF4ATTRDIR = 8 # Attribute Directory
+    NF4NAMEDATTR = 9 # Named Attribute
+
 class nfsstat4(xdr_enum):
     NFS4_OK = 0 # everything is okay
     NFS4ERR_PERM = 1 # caller not privileged
@@ -103,7 +118,7 @@ utf8string = xdr_opaque()
 utf8str_cis = xdr_opaque()
 utf8str_mixed = xdr_opaque()
 verifier4 = xdr_opaque(size=NFS4_VERIFIER_SIZE)
-class nfstime(xdr_struct):
+class nfstime4(xdr_struct):
     seconds = int64_t
     nseconds = uint32_t
 class time_how4(xdr_enum):
@@ -114,7 +129,7 @@ class settime4(xdr_union(set_it=time_how4)):
 
 
 # File access handle
-nfs_fh4 = rpc_opaque(max=NFS4_FHSIZE)
+nfs_fh4 = xdr_opaque(max=NFS4_FHSIZE)
 
 
 # File attribute definitions
@@ -381,14 +396,14 @@ class open_owner4(xdr_struct):
 class lock_owner4(xdr_struct):
     clientid = clientid4
     owner = xdr_opaque(max=NFS4_OPAQUE_LIMIT)
+class stateid4(xdr_struct):
+    seqid = uint32_t
+    other = xdr_opaque(size=12)
 class open_to_lock_owner4(xdr_struct):
     open_seqid = seqid4
     open_stateid = stateid4
     lock_seqid = seqid4
     lock_owner = lock_owner4
-class stateid4(xdr_struct):
-    seqid = uint32_t
-    other = xdr_opaque(size=12)
 
 
 class SECINFO4args(xdr_struct):
@@ -675,7 +690,7 @@ class open_claim4(xdr_union(claim=open_claim_type4)):
 
     # Right to file based on a delegation granted to a previous boot
     # instance of the client.  File is specified by name.
-    CLAIM_DELEGATE_PREV,file_delegate_prev = component4
+    CLAIM_DELEGATE_PREV.file_delegate_prev = component4
     # CURRENT_FH: directory
 
 # OPEN: Open a file, potentially receiving an open delegation
@@ -807,7 +822,7 @@ class entry4(xdr_struct):
     cookie = nfs_cookie4
     name = component4
     attrs = fattr4
-    nextentry = xdr_optional(entry4)
+entry4.nextentry = xdr_optional(entry4)
 
 class dirlist4(xdr_struct):
     entries = xdr_optional(entry4)
@@ -818,7 +833,7 @@ class READDIR4resok(xdr_struct):
     reply = dirlist4
 
 class READDIR4res(xdr_union(status=nfsstat4)):
-    NFS4_OK.READDIR4resok = resok4
+    NFS4_OK.resok4 = READDIR4resok
 
 # READLINK: Read symbolic link
 class READLINK4resok(xdr_struct):
@@ -1081,4 +1096,12 @@ class NFS4_PROGRAM(rpc_program(prog=10003)):
     NFS_V4.NFSPROC4_COMPOUND = rpc_procedure(proc=1,
                                              args=COMPOUND4args,
                                              ret=COMPOUND4res)
+
+
+
+if __name__ == "__main__":
+    import Unpacker
+    unpacker = Unpacker(b)
+    args = COMPOUNDargs.unpack(unpacker)
+    print(args)
 
