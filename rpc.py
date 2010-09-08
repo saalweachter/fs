@@ -1,5 +1,6 @@
 """
 RPC implementation.
+According to RPC 1831.
 """
 
 from xdr import xdr_enum, xdr_opaque, xdr_struct, xdr_uint, xdr_union, xdr_string, xdr_array, xdr_void, xdr_int
@@ -8,6 +9,8 @@ class auth_flavor(xdr_enum):
     AUTH_NONE = 0
     AUTH_SYS = 1
     AUTH_SHORT = 2
+    # added by RPC 2203
+    RPCSEC_GSS = 6
 
 class opaque_auth(xdr_struct):
     flavor = auth_flavor
@@ -245,7 +248,7 @@ if __name__ == "__main__":
 
 
 
-
+'''
 
 class rpc_server(object):
     """
@@ -409,7 +412,7 @@ print(res)
 #opaque_auth(flavor=1, body="apples to apples").pack(3)
 
 
-
+'''
 
 
 

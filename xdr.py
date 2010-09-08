@@ -87,6 +87,9 @@ class xdr_uint(xdr_object):
     def __hash__(self):
         return self.value.__hash__()
 
+    def __str__(self):
+        return str(self.value)
+
     def pack(self, packer):
         packer.pack_uint(self.value)
 
@@ -279,6 +282,9 @@ def xdr_opaque(max=None, size=None):
                     raise XDRBadValue
             self.bytes = _bytes
 
+        def __str__(self):
+            return str(self.bytes)
+
         def pack(self, packer):
             if "size" in self.__class__.__dict__:
                 packer.pack_fopaque(self.__class__.size, self.bytes)
@@ -342,6 +348,11 @@ class xdr_struct(xdr_object):
         for k, v in members:
             if k not in self.__dict__:
                 raise XDRBadValue
+
+    def __str__(self):
+        return "\n".join( "%s: %s" % (k, str(self.__dict__[k]))
+                          for k, v in self.__class__.__dict__.items()
+                          if isinstance(v, type) )
 
     def members(self):
         return [ (k, v)
@@ -450,7 +461,7 @@ def xdr_array(element_type, max=None, size=None):
     if size:
         max = size
     class _xdr_array(xdr_object):
-        def __init__(self, *elements):
+        def __init__(self, elements):
             if size is not None:
                 if len(elements) != size:
                     raise XDRBadValue
@@ -459,6 +470,12 @@ def xdr_array(element_type, max=None, size=None):
                               for e in elements ]
 
         def __index__(self, n):
+            return self.elements[n]
+
+        def __len__(self):
+            return len(self.elements)
+
+        def __getitem__(self, n):
             return self.elements[n]
 
         def pack(self, packer):

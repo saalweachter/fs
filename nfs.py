@@ -3,8 +3,11 @@ Basic NFS implementation.
 """
 
 from xdr import xdr_int, xdr_uint, xdr_hyper, xdr_uhyper, xdr_opaque, xdr_array
-from xdr import xdr_enum, xdr_struct, xdr_union, xdr_bool, xdr_string
+from xdr import xdr_enum, xdr_struct, xdr_union, xdr_bool, xdr_string, xdr_void
 from xdr import xdr_optional
+
+from rpc import rpc_program, rpc_version, rpc_procedure
+from rpc import auth_flavor as rpc_auth_flavor
 
 
 int32_t = xdr_int
@@ -885,7 +888,7 @@ class SAVEFH4res(xdr_struct):
     status = nfsstat4
 
 # RPCSEC_GSS has a value of '6' - See RFC 2203
-class secinfo4(xdr_union(flavor=uint32_t)):
+class secinfo4(xdr_union(flavor=rpc_auth_flavor)):
     RPCSEC_GSS.flavor_info = rpcsec_gss_info
 
 SECINFO4resok = xdr_array(secinfo4)
@@ -1091,8 +1094,8 @@ class COMPOUND4res(xdr_struct):
 class NFS4_PROGRAM(rpc_program(prog=10003)):
     NFS_V4 = rpc_version(vers=4)
     NFS_V4.NFSPROC4_NULL = rpc_procedure(proc=0,
-                                         args=rpc_void,
-                                         ret=rpc_void)
+                                         args=xdr_void,
+                                         ret=xdr_void)
     NFS_V4.NFSPROC4_COMPOUND = rpc_procedure(proc=1,
                                              args=COMPOUND4args,
                                              ret=COMPOUND4res)
@@ -1100,8 +1103,23 @@ class NFS4_PROGRAM(rpc_program(prog=10003)):
 
 
 if __name__ == "__main__":
-    import Unpacker
+    from xdrlib import Unpacker
     unpacker = Unpacker(b)
-    args = COMPOUNDargs.unpack(unpacker)
+    args = COMPOUND4args.unpack(unpacker)
     print(args)
-
+    print("tag: %s" % args.tag)
+    print("minor version: %d" % args.minorversion)
+    print("args: %d" % len(args.argarray))
+    arg = args.argarray[0]
+    print("argop: %d" % arg.argop)
+    ops = arg.opsetclientid
+    print("ops: %s" % ops)
+    print("ops.client.verifier: %s" % ops.client.verifier)
+    print("ops.client.id: %s" % ops.client.id)
+"""
+    client = nfs_client_id4
+    verifier = verifier4
+    id = xdr_opaque(max=NFS4_OPAQUE_LIMIT)
+    callback = cb_client4
+    callback_ident = uint32_t
+"""
