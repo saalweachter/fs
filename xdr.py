@@ -478,6 +478,9 @@ def xdr_array(element_type, max=None, size=None):
         def __getitem__(self, n):
             return self.elements[n]
 
+        def __str__(self):
+            return ", ".join(str(e) for e in self.elements)
+
         def pack(self, packer):
             if size is None:
                 packer.pack_uint(len(self.elements))
