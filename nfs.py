@@ -1091,15 +1091,32 @@ class COMPOUND4res(xdr_struct):
     tag = utf8str_cs
     resarray = xdr_array(nfs_resop4)
 
-class NFS4_PROGRAM(rpc_program(prog=10003)):
-    NFS_V4 = rpc_version(vers=4)
-    NFS_V4.NFSPROC4_NULL = rpc_procedure(proc=0,
-                                         args=xdr_void,
-                                         ret=xdr_void)
-    NFS_V4.NFSPROC4_COMPOUND = rpc_procedure(proc=1,
-                                             args=COMPOUND4args,
-                                             ret=COMPOUND4res)
 
+@rpc_program(prog=100003)
+class NFS4_PROGRAM(object):
+    def __init__(self):
+        self.NFS_V4 = NFS4_PROGRAM.NFS_V4()
+    @rpc_version(vers=4)
+    class NFS_V4(object):
+        @rpc_procedure(proc=0, args=xdr_void, ret=xdr_void)
+        def NFSPROC4_NULL(self):
+            pass
+
+        @rpc_procedure(proc=1, args=COMPOUND4args, ret=COMPOUND4res)
+        def NFSPROC4_COMPOUND(self, args):
+            pass
+
+
+
+if __name__ == "__main__":
+    from rpc import rpc_server
+    server = rpc_server(2049)
+    server.add_program(NFS4_PROGRAM())
+    for i in range(60):
+        print("loop.")
+        server.cycle(1000.0)
+    import sys
+    sys.exit(0)
 
 
 if __name__ == "__main__":
