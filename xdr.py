@@ -5,7 +5,7 @@ XDR implementation, using xdrlib for packing.
 import xdrlib as _xdr
 
 
-class XDRBadValue(object):
+class XDRBadValue(BaseException):
     pass
 
 
@@ -276,9 +276,11 @@ def xdr_opaque(max=None, size=None):
     class _xdr_opaque(xdr_object):
         def __init__(self, _bytes):
             if not isinstance(_bytes, bytes):
+                print("not bytes")
                 raise XDRBadValue
             if self.__class__.max:
                 if len(_bytes) > self.__class__.max:
+                    print("too long")
                     raise XDRBadValue
             self.bytes = _bytes
 
@@ -341,6 +343,8 @@ class xdr_struct(xdr_object):
         members_dict = dict(members)
         for k, v in kwds.items():
             if k not in members_dict:
+                print("k: %s" % k)
+                print("members: %s" % members_dict)
                 raise XDRBadValue
             if not isinstance(v, members_dict[k]):
                 v = members_dict[k](v)
@@ -465,6 +469,7 @@ def xdr_array(element_type, max=None, size=None):
             if size is not None:
                 if len(elements) != size:
                     raise XDRBadValue
+            print("memory type: %s" % element_type)
             self.elements = [ e if isinstance(e, element_type)
                               else element_type(e)
                               for e in elements ]

@@ -64,7 +64,7 @@ class mismatch_info(xdr_struct):
 class accepted_reply(xdr_struct):
     verf = opaque_auth
     reply_data = xdr_union(stat=accept_stat)
-    reply_data.SUCCESS.results = xdr_opaque(size=0)
+    # reply_data.SUCCESS.results = xdr_opaque(size=0)
     reply_data.PROG_MISMATCH.mismatch_info = mismatch_info
     # reply_data.default = void
 
@@ -321,8 +321,22 @@ class rpc_server(object):
         print("version: %s" % str(version))
         procedure = version.get_procedure_by_id(msg.body.cbody.proc)
         print("procedure: %s" % str(procedure))
-        response = procedure(msg, opaque_bytes[unpacker.get_position():])
-        return response
+        print("procedure.arg_type: %s" % str(procedure.argument_type))
+        args = procedure.argument_type.unpack(unpacker)
+        print("args: %s" % str(args))
+        response = procedure(version, msg, args)
+        print("response: %s" % str(response))
+        reply = rpc_msg(xid=msg.xid,
+                        body=_body(mtype=msg_type.REPLY,
+                                   rbody=_rbody(stat=reply_stat.MSG_ACCEPTED,
+                                                areply=_areply(verf=opaque_auth.NONE(),
+                                                               reply_data=_rdata(stat=accept_stat.SUCCESS)))))
+        print("reply: %s" % str(reply))
+        packer = Packer()
+        reply.pack(packer)
+        response.pack(packer)
+        print("bytes: %s" % str(packer.get_buffer()))
+        return packer.get_buffer()
 
 
 
