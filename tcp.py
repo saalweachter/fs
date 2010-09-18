@@ -32,6 +32,8 @@ def _bytes_from_length(len, closing):
     packer.pack_uint(len)
     return packer.get_buffer()
 
+class SocketClosed(BaseException):
+    pass
 
 class tcp_client(object):
     """
@@ -74,6 +76,7 @@ class tcp_client(object):
         Set close=True if this is the last message being sent to this
         connection.
         """
+        print("appending to message queue.")
         self.out_messages.append((opaque_bytes, close))
 
     def cycle_network(self, timeout):
@@ -91,7 +94,9 @@ class tcp_client(object):
 
     def _register(self, poll):
         if self.out_buffer:
-            poll.register(self.socket)
+            import select
+            print("register for write")
+            poll.register(self.socket, select.POLLIN | select.POLLPRI | select.POLLOUT)
         else:
             import select
             poll.register(self.socket, select.POLLIN | select.POLLPRI)
@@ -99,27 +104,37 @@ class tcp_client(object):
     def _handle(self, events):
         for fd, event in events:
             if fd != self.socket.fileno():
+                print("not me socket!")
                 continue
+            print("handling socket.")
             import select
             if event & select.POLLIN or event & select.POLLPRI:
+                print("socket can read")
                 # read
+                any = False
                 try:
                     while True:
                         bytes = self.socket.recv(4096)
                         if not bytes:
                             break
                         self.in_buffer += bytes
+                        any = True
                         if len(bytes) < 4096:
                             break
                 except:
+                    print("Error in tcp_client._handle!")
                     pass
+                if not any:
+                    raise SocketClosed
             if event & select.POLLOUT:
+                print("socket can write")
                 # write
                 try:
                     if len(self.out_buffer) < 4096:
                         bytes = self.out_buffer
                     else:
                         bytes = self.out_buffer[:4096]
+                    print("writing bytes to socket: %s" % bytes)
                     n = self.socket.send(bytes)
                     self.out_buffer = self.out_buffer[n:]
                 except:
@@ -145,6 +160,7 @@ class tcp_client(object):
         # out-messages.
         while self.out_messages:
             bytes, closing = self.out_messages.pop(0)
+            print("writing message to out_buffer: %s" % bytes)
             self.out_buffer += _bytes_from_length(len(bytes), closing)
             self.out_buffer += bytes
 
@@ -180,6 +196,7 @@ class tcp_server(object):
         connection.
         """
         if client_id in self.clients:
+            print("pushing to client!")
             self.clients[client_id].push_message(opaque_bytes, close=close)
 
     def cycle_network(self, timeout):
@@ -221,9 +238,15 @@ class tcp_server(object):
                 socket.address = address
                 self.clients[self.next_client_id] = socket
                 self.next_client_id += 1
-        for client in self.clients.values():
-            client._handle(events)
-
+        dead = []
+        for id, client in self.clients.items():
+            try:
+                client._handle(events)
+            except SocketClosed:
+                print("socket closed! (%d)" % id)
+                dead.append(id)
+        for id in dead:
+            self.clients.pop(id)
 
 
 if __name__ == "__main__":
