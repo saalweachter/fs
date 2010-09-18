@@ -4,6 +4,12 @@ RFC 1833
 """
 
 
+from xdr import xdr_struct, xdr_hyper, xdr_uhyper, xdr_array, xdr_string
+from xdr import xdr_optional, xdr_opaque, xdr_int, xdr_uint, xdr_bool, xdr_void
+
+from rpc import rpc_program, rpc_version, rpc_procedure
+
+
 # rpcbind address for TCP/UDP
 RPCB_PORT = 111
 
@@ -25,7 +31,8 @@ class rpcb(xdr_struct):
 
 class rp__list(xdr_struct):
     rpcb_map = rpcb
-    rpcb_next = optional(rp__list)
+    #rpcb_next = xdr_optional(rp__list)
+rp__list.rpcb_next = xdr_optional(rp__list)
 
 rpcblist_ptr = xdr_optional(rp__list) # results of RPCBPROC_DUMP
 
@@ -38,8 +45,8 @@ class rpcb_rmtcallargs(xdr_struct):
 
 # Results of the remote call
 class rpcb_rmtcallres(xdr_struct):
-    addr = xdr_array(string) # remote universal address
-    results = xdr_opaque # result
+    addr = xdr_array(xdr_string) # remote universal address
+    results = xdr_opaque() # result
 
 """
 rpcb_entry contains a merged address of a service on a particular
@@ -107,14 +114,15 @@ class rpcb_entry(xdr_struct):
 # A list of addresses supported by a service.
 class rpcb_entry_list(xdr_struct):
     rpcb_entry_map = rpcb_entry
-    rpcb_entry_next = xdr_optional(rpcb_entry_list)
+#    rpcb_entry_next = xdr_optional(rpcb_entry_list)
+rpcb_entry_list.rpcb_entry_next = xdr_optional(rpcb_entry_list)
 
 rpcb_entry_list_ptr = xdr_optional(rpcb_entry_list)
 
 # rpcbind statistics
-rpcb_highproc_2 = RPCBPROC_CALLIT
-rpcb_highproc_3 = RPCBPROC_TADDR2UADDR
-rpcb_highproc_4 = RPCBPROC_GETSTAT
+#rpcb_highproc_2 = RPCBPROC_CALLIT
+#rpcb_highproc_3 = RPCBPROC_TADDR2UADDR
+#rpcb_highproc_4 = RPCBPROC_GETSTAT
 
 RPCBSTAT_HIGHPROC = 13 # # of procs in rpcbind V4 plus one
 RPCBVERS_STAT = 3 # provide only for rpcbind V2, V3 and V4
@@ -129,7 +137,8 @@ class rpcbs_addrlist(xdr_struct):
     success = xdr_int
     failure = xdr_int
     netid = xdr_array(xdr_string)
-    next = xdr_optional(rpcbs_addrlist)
+#    next = xdr_optional(rpcbs_addrlist)
+rpcbs_addrlist.next = xdr_optional(rpcbs_addrlist)
 
 # Link list of all the stats about rmtcall
 class rpcbs_rmtcalllist(xdr_struct):
@@ -140,7 +149,8 @@ class rpcbs_rmtcalllist(xdr_struct):
     failure = xdr_int
     indirect = xdr_int # whether callit or indirect
     netid = xdr_array(xdr_string)
-    next = xdr_optional(rpcbs_rmtcalllist)
+#    next = xdr_optional(rpcbs_rmtcalllist)
+rpcbs_rmtcalllist.next = xdr_optional(rpcbs_rmtcalllist)
 
 rpcbs_proc = xdr_array(xdr_int, size=RPCBSTAT_HIGHPROC)
 rpcbs_addrlist_ptr = xdr_optional(rpcbs_addrlist)
@@ -165,60 +175,77 @@ class netbuf(xdr_struct):
 
 
 # rpcbind procedures
-class RPCBPROG(rpc_program(prog=100000)):
-    RPCBVERS = rpc_version(vers=3)
-    RPCBVERS.RPCBPROC_SET = rpc_procedure(proc=1,
-                                          args=rpcb, ret=xdr_bool)
-    RPCBVERS.RPCBPROC_UNSET = rpc_procedure(proc=2,
-                                            args=rpcb, ret=xdr_bool)
-    RPCBVERS.RPCBPROC_GETADDR = rpc_procedure(proc=3,
-                                              args=rpcb, ret=xdr_string)
-    RPCBVERS.RPCBPROC_DUMP = rpc_procedure(proc=4,
-                                           args=xdr_void, ret=rpcblist_ptr)
-    RPCBVERS.RPCBPROC_CALLIT = rpc_procedure(proc=5,
-                                             args=rpcb_rmtcallargs,
-                                             ret=rpcb_rmtcallres)
-    RPCBVERS.RPCBPROC_GETTIME = rpc_procedure(proc=6,
-                                              args=xdr_void, ret=xdr_uint)
-    RPCBVERS.RPCBPROC_UADDR2TADDR = rpc_procedure(proc=7,
-                                                  args=xdr_string, ret=netbuf)
-    RPCBVERS.RPCBPROC_TADDR2UADDR = rpc_procedure(proc=1,
-                                                  args=netbuf, ret=xdr_string)
+@rpc_program(prog=100000)
+class RPCBPROG(object):
+    @rpc_version(vers=3)
+    class RPCBVERS(object):
+        @rpc_procedure(proc=1, args=rpcb, ret=xdr_bool)
+        def RPCBPROC_SET(self, arg):
+            pass
+        @rpc_procedure(proc=2, args=rpcb, ret=xdr_bool)
+        def RPCBPROC_UNSET(self, arg):
+            pass
+        @rpc_procedure(proc=3, args=rpcb, ret=xdr_string)
+        def RPCBPROC_GETADDR(self, arg):
+            pass
+        @rpc_procedure(proc=4, args=xdr_void, ret=rpcblist_ptr)
+        def RPCBPROC_DUMP(self, arg):
+            pass
+        @rpc_procedure(proc=5, args=rpcb_rmtcallargs, ret=rpcb_rmtcallres)
+        def RPCBPROC_CALLIT(self, arg):
+            pass
+        @rpc_procedure(proc=6, args=xdr_void, ret=xdr_uint)
+        def RPCBPROC_GETTIME(self, arg):
+            pass
+        @rpc_procedure(proc=7, args=xdr_string, ret=netbuf)
+        def RPCBPROC_UADDR2TADDR(self, arg):
+            pass
+        @rpc_procedure(proc=1, args=netbuf, ret=xdr_string)
+        def RPCBPROC_TADDR2UADDR(self, arg):
+            pass
 
-    RPCBVERS4 = rpc_version(vers=4)
-    RPCVERS4.RPCBPROC_SET = rpc_procedure(proc=1,
-                                          args=rpcb, ret=xdr_bool)
-    RPCVERS4.RPCBPROC_UNSET = rpc_procedure(proc=2,
-                                            args=rpcb, ret=xdr_bool)
-    RPCVERS4.RPCBPROC_GETADDR = rpc_procedure(proc=3,
-                                          args=rpcb, ret=xdr_string)
-    RPCVERS4.RPCBPROC_DUMP = rpc_procedure(proc=4,
-                                           args=xdr_void, ret=rpcblist_ptr)
-    """
-    NOTE: RPCBPROC_BCAST has the same functionality as CALLIT;
-    the new name is intended to indicate that this
-    procedure should be used for broadcast RPC, and
-    RPCBPROC_INDIRECT should be used for indirect calls.
-    """
-    RPCVERS4.RPCBPROC_BCAST = rpc_procedure(proc=5,
-                                            args=rpcb_rmtcallargs,
-                                            ret=rpcb_rmtcallres)
-    RPCVERS4.RPCBPROC_GETTIME = rpc_procedure(proc=6,
-                                              args=xdr_void, ret=xdr_uint)
-    RPCVERS4.RPCBPROC_UADDR2TADDR = rpc_procedure(proc=7,
-                                                  args=xdr_string, ret=netbuf)
-    RPCVERS4.RPCBPROC_TADDR2UADDR = rpc_procedure(proc=8,
-                                                  args=netbuf, ret=xdr_string)
-    RPCVERS4.RPCBPROC_GETVERSADDR = rpc_procedure(proc=9,
-                                                  args=rpcb, ret=xdr_string)
-    RPCVERS4.RPCBPROC_INDIRECT = rpc_procedure(proc=10,
-                                               args=rpcb_rmtcallargs,
-                                               ret=rpcb_rmtcallres)
-    RPCVERS4.RPCBPROC_GETADDRLIST = rpc_procedure(proc=11,
-                                                  args=rpcb,
-                                                  ret=rpcb_entry_list_ptr)
-    RPCVERS4.RPCBPROC_GETSTAT = rpc_procedure(proc=12,
-                                              args=xdr_void,
-                                              ret=rpcb_stat_byvers)
-
+    @rpc_version(vers=4)
+    class RPCBVERS4(object):
+        @rpc_procedure(proc=1, args=rpcb, ret=xdr_bool)
+        def RPCBPROC_SET(self, arg):
+            pass
+        @rpc_procedure(proc=2, args=rpcb, ret=xdr_bool)
+        def RPCBPROC_UNSET(self, arg):
+            pass
+        @rpc_procedure(proc=3, args=rpcb, ret=xdr_string)
+        def RPCBPROC_GETADDR(self, arg):
+            pass
+        @rpc_procedure(proc=4, args=xdr_void, ret=rpcblist_ptr)
+        def RPCBPROC_DUMP(self):
+            pass
+        @rpc_procedure(proc=5, args=rpcb_rmtcallargs, ret=rpcb_rmtcallres)
+        def RPCBPROC_BCAST(self, arg):
+            """
+            NOTE: RPCBPROC_BCAST has the same functionality as CALLIT;
+            the new name is intended to indicate that this
+            procedure should be used for broadcast RPC, and
+            RPCBPROC_INDIRECT should be used for indirect calls.
+            """
+            pass
+        @rpc_procedure(proc=6, args=xdr_void, ret=xdr_uint)
+        def RPCBPROC_GETTIME(self):
+            pass
+        @rpc_procedure(proc=7, args=xdr_string, ret=netbuf)
+        def RPCBPROC_UADDR2TADDR(self, arg):
+            pass
+        @rpc_procedure(proc=8, args=netbuf, ret=xdr_string)
+        def RPCBPROC_TADDR2UADDR(self, arg):
+            pass
+        @rpc_procedure(proc=9, args=rpcb, ret=xdr_string)
+        def RPCBPROC_GETVERSADDR(self, arg):
+            pass
+        @rpc_procedure(proc=10, args=rpcb_rmtcallargs, ret=rpcb_rmtcallres)
+        def RPCBPROC_INDIRECT(self, arg):
+            pass
+        @rpc_procedure(proc=11, args=rpcb, ret=rpcb_entry_list_ptr)
+        def RPCBPROC_GETADDRLIST(self, arg):
+            pass
+        @rpc_procedure(proc=12, args=xdr_void, ret=rpcb_stat_byvers)
+        def RPCBPROC_GETSTAT(self):
+            pass
 

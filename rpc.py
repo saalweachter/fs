@@ -182,9 +182,10 @@ if __name__ == "__main__":
 
 
 class rpc_client(object):
-    def __init__(self, prog, vers):
+    def __init__(self, prog, vers, tcp_client):
         self.program = prog
         self.version = self.program.get_version_impl(vers)
+        self.tcp_client = tcp_client
         self.xid = 1
 
     def __getattr__(self, proc):
@@ -212,6 +213,8 @@ class rpc_client(object):
                 packer = Packer()
                 msg.pack(packer)
                 print("msg: %s" % packer.get_buffer())
+                arg.pack(packer)
+                print("msg: %s" % packer.get_buffer())
 
         xid = self.xid
         self.xid += 1
@@ -236,6 +239,8 @@ class rpc_server(object):
         from tcp import tcp_server
         self.tcp_server = tcp_server(server_port)
         self.programs = {}
+        self.next_short_id = 1
+        self.system_auth = {}
 
     def add_program(self, prog):
         self.programs[prog.program_id] = prog
@@ -287,6 +292,15 @@ class rpc_server(object):
             unpacker2 = Unpacker(msg.body.cbody.cred.body.bytes)
             params = authsys_parms.unpack(unpacker2)
             print(params)
+            id = self.next_short_id
+            self.next_short_id += 1
+            self.system_auth[id] = params
+            packer = Packer()
+            packer.pack_uint(id)
+            verf = opaque_auth(flavor=auth_flavor.AUTH_SHORT,
+                               body=packer.get_buffer())
+        else:
+            verf = opaque_auth.NONE()
 
         def _pack(reply):
             packer = Packer()
@@ -311,7 +325,7 @@ class rpc_server(object):
             reply = rpc_msg(xid=msg.xid,
                             body=_body(mtype=msg_type.REPLY,
                                        rbody=_rbody(stat=reply_stat.MSG_ACCEPTED,
-                                                    areply=_areply(verf=opaque_auth.NONE(),
+                                                    areply=_areply(verf=verf,
                                                                    reply_data=_rdata(stat=accept_stat.PROG_UNAVAIL)))))
             return _pack(reply)
 
@@ -329,7 +343,7 @@ class rpc_server(object):
         reply = rpc_msg(xid=msg.xid,
                         body=_body(mtype=msg_type.REPLY,
                                    rbody=_rbody(stat=reply_stat.MSG_ACCEPTED,
-                                                areply=_areply(verf=opaque_auth.NONE(),
+                                                areply=_areply(verf=verf,
                                                                reply_data=_rdata(stat=accept_stat.SUCCESS)))))
         print("reply: %s" % str(reply))
         packer = Packer()
