@@ -1106,6 +1106,7 @@ class NFS4_PROGRAM(object):
         def NFSPROC4_COMPOUND(self, args):
             pass
 
+    NFS_VERS = 4
 
 
 if __name__ == "__main__":
